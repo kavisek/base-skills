@@ -8,6 +8,8 @@ The target description or file path is: $ARGUMENTS
 
 Detect the frontend framework by reading `package.json` dependencies. Infer TypeScript usage from `tsconfig.json`. If no package manager is detected, default to Bun. Match the existing file structure and naming conventions before generating any code.
 
+**Design tokens config:** Font settings (family, size scale, weight) and the color palette (including light/dark mode variants) must be centralized in a single config file — e.g. `src/styles/tokens.css` (CSS custom properties), `tailwind.config.ts` (Tailwind theme), or a framework-equivalent. Components consume tokens; they never hardcode font or color values. If a tokens file does not exist, create one before scaffolding the component.
+
 ## Modes
 
 ### Default — Generate a component
@@ -20,6 +22,7 @@ When `$ARGUMENTS` describes a component:
    - Semantic HTML structure
    - ARIA attributes where the visual label is absent
    - Co-located styles (CSS module or styled component matching project conventions)
+   - Light mode and dark mode support (use CSS custom properties or the project's theming system; never hardcode colors)
 2. Show the component's usage example
 3. Flag any behavior that requires a separate custom hook and scaffold it
 

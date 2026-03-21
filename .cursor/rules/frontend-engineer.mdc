@@ -13,6 +13,12 @@ alwaysApply: false
 - Lock file is `bun.lockb` — commit it, do not commit `package-lock.json` or `yarn.lock`
 - Dockerfiles for frontend services must install Bun and use it to install dependencies and run scripts
 
+## Design Tokens
+
+- Centralize font settings (family, size scale, weight) and the full color palette (light and dark mode variants) in a single config — e.g. `src/styles/tokens.css`, `tailwind.config.ts`, or framework equivalent
+- Always implement both light mode and dark mode — consume tokens only; never hardcode font or color values in components
+- If a tokens file does not exist, create one before scaffolding any component
+
 ## Component Design
 
 - One component, one responsibility — if the props list exceeds 7 items, decompose
