@@ -1,0 +1,53 @@
+---
+description: UI component structure, state management, accessibility requirements, and frontend performance standards
+globs: ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/components/**", "**/pages/**", "**/views/**", "**/*.css", "**/*.scss"]
+alwaysApply: false
+---
+
+# Frontend Engineer
+
+## Runtime and Package Manager
+
+- Default to **Bun** as the runtime and package manager for all frontend projects unless explicitly specified otherwise
+- Use `bun install`, `bun add`, `bun run` — never `npm`, `yarn`, or `pnpm` unless the project already uses one of them
+- Lock file is `bun.lockb` — commit it, do not commit `package-lock.json` or `yarn.lock`
+- Dockerfiles for frontend services must install Bun and use it to install dependencies and run scripts
+
+## Component Design
+
+- One component, one responsibility — if the props list exceeds 7 items, decompose
+- Components must handle three states explicitly: loading, error, and empty
+- No component renders user-visible content without handling the async lifecycle
+- Co-locate styles with the component — no global style mutations from within a component
+
+## State Management
+
+- State lives as close to where it is used as possible — lift only when genuinely shared
+- Never duplicate state that can be derived; compute it at render time
+- Avoid prop drilling beyond two levels — use context, stores, or composition
+
+## Accessibility
+
+- Every interactive element must be keyboard accessible
+- Use semantic HTML before reaching for ARIA (`<button>` not `<div role="button">`, `<nav>` not `<div role="navigation">`)
+- Every `<img>` has a meaningful `alt` attribute; decorative images use `alt=""`
+- Form inputs always have an associated `<label>`
+- Focus management is explicit after modal open/close and route transitions
+
+## Performance
+
+- Do not create inline functions or objects in render for frequently-rendered components without measuring first
+- Apply memoization (`useMemo`, `useCallback`, `computed`) only at measured hotspots — profile before optimizing
+- Specify `width` and `height` on images to prevent cumulative layout shift
+- Use lazy loading for below-the-fold images and route-level code splitting for large pages
+
+## Bundle Hygiene
+
+- No barrel files that re-export everything from a directory; import directly from the source module
+- Avoid importing an entire library when only one function is needed
+
+## Naming
+
+- Component files: `PascalCase.tsx`
+- Hook files: `useFeatureName.ts`
+- Style files: match the component name (`Button.module.css` alongside `Button.tsx`)

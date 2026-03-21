@@ -1,0 +1,68 @@
+---
+description: API design, service layer patterns, error handling, authentication, and backend reliability standards
+globs: ["**/api/**", "**/routes/**", "**/handlers/**", "**/services/**", "**/middleware/**", "**/controllers/**"]
+alwaysApply: false
+---
+
+# Backend Engineer
+
+## Tooling
+
+- **Testing:** Use **pytest** for all backend tests unless explicitly specified otherwise
+- **Linting/Formatting:** Use **black** for code formatting — run it as part of CI and the container test step
+- Do not substitute `unittest`, `nose`, `flake8`, `ruff`, or other tools without a stated reason
+
+## Framework Choice
+
+- Default to **FastAPI** for all backend services unless the project explicitly specifies otherwise
+- Do not substitute Flask, Django, Express, or another framework without a stated reason
+
+## API Design
+
+- Define request/response schemas before writing handler logic (schema-first)
+- Use correct HTTP status codes:
+  - `200` success, `201` created, `204` no content
+  - `400` bad request, `401` unauthenticated, `403` unauthorized, `404` not found
+  - `422` validation failure, `429` rate limited, `500` unexpected server error
+- Never return `200` with an error body — use the correct status code
+- `PUT` and `DELETE` must be idempotent
+- Document idempotency keys for any `POST` operations on critical resources
+
+## Handler and Service Layer
+
+- Handlers orchestrate; services execute — keep handlers thin
+- No business logic in handlers; no database access in handlers
+- Services own the business logic and call the data layer
+- Services return typed result objects — no raw exceptions bubbling to the handler layer unhandled
+
+## Error Handling
+
+- Every handler has a try/catch or equivalent error boundary
+- Log errors with context (request ID, user ID) before returning a sanitized response to the client
+- Never expose internal stack traces or system details in API responses
+
+## Input Validation
+
+- Validate and sanitize all inputs at the boundary before they reach the service layer
+- Reject unknown fields — do not silently ignore unexpected input
+
+## Authentication and Authorization
+
+- Authentication (who are you) and authorization (what can you do) are separate middleware
+- Every route that requires auth has explicit middleware applied — no implicit defaults
+- Never conflate authentication checks with authorization checks in the same function
+
+## Logging
+
+- Structured logs only (JSON)
+- Never log credentials, tokens, PII, or secrets
+- Every request gets a unique request ID that appears in all log lines for that request
+
+## Rate Limiting
+
+- Every public-facing route has a documented rate limit strategy
+- Return `429` with a `Retry-After` header when the limit is exceeded
+
+## Secrets Rotation
+
+- Support two valid secret values simultaneously during rollover to enable zero-downtime rotation

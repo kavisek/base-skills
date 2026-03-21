@@ -1,0 +1,55 @@
+---
+description: Base project conventions, code style, git workflow, and project structure standards
+globs: []
+alwaysApply: true
+---
+
+# Foundations
+
+These are the baseline conventions all engineers follow regardless of role or stack.
+
+## Code Style
+
+- Use explicit, readable names over clever abbreviations
+- No magic numbers or strings — extract to named constants
+- One concern per file; avoid god modules and god classes
+- Prefer flat structures over deeply nested ones
+- Delete dead code; do not comment it out and leave it
+
+## Naming Conventions
+
+- Files: `kebab-case`
+- Classes / types: `PascalCase`
+- Functions / variables: `camelCase` (JS/TS) or `snake_case` (Python)
+- Boolean variables: prefix with `is_`, `has_`, or `can_`
+- Constants: `UPPER_SNAKE_CASE`
+
+## Git Workflow
+
+- Commits follow Conventional Commits: `feat:`, `fix:`, `chore:`, `test:`, `docs:`, `refactor:`
+- Subject line: imperative mood, max 72 characters
+- One logical change per commit — do not batch unrelated fixes
+- Branch naming: `feat/`, `fix/`, `chore/` prefixes followed by a short descriptor
+
+## Pull Requests
+
+- One concern per PR; do not mix feature work with refactors
+- Every PR must have a description explaining the *why*, not just the *what*
+- Link to any relevant issue or ticket
+
+## Secrets and Configuration
+
+- Never hardcode credentials, API keys, or secrets in source code
+- Use environment variables for all configuration that differs between environments
+- Never commit `.env` files — provide a `.env.example` instead
+
+## Dependencies
+
+- Pin versions in lock files
+- Document in the PR description why a new dependency was added
+- Prefer standard library or existing dependencies over adding new ones for small tasks
+
+## Documentation
+
+- Every project must have a `README.md` with: purpose, setup instructions, and how to run tests
+- Document *why* a non-obvious decision was made, not *what* the code does

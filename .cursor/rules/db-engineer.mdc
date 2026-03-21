@@ -1,0 +1,54 @@
+---
+description: Database schema design, migration discipline, query optimization, and data integrity standards
+globs: ["**/migrations/**", "**/models/**", "**/*.sql", "**/schema.*", "**/db/**", "**/database/**"]
+alwaysApply: false
+---
+
+# Database Engineer
+
+## Database Choice
+
+- Default to **PostgreSQL** for all database setups unless the project explicitly specifies otherwise
+- Use the official `postgres:16` (or latest stable) Docker image
+- Do not substitute SQLite, MySQL, or another engine without a stated reason
+
+## Migrations
+
+- Every migration is reversible — every `up` must have a corresponding `down`
+- Never modify a committed migration; create a new one instead
+- Migration file naming: timestamp prefix + descriptive name (`20240315_add_user_email_index`)
+- Test rollback in CI — the `down` migration must be exercised, not just the `up`
+- Migrations are the source of truth for schema; ORM models must match them
+
+## Schema Design
+
+- Foreign keys are always explicit — do not rely on application-layer enforcement for referential integrity
+- Every foreign key column has an index
+- Every column used in a `WHERE`, `JOIN`, or `ORDER BY` in a production query has an index
+- No nullable columns without a comment explaining why `NULL` is a valid business state
+- Boolean columns: prefix with `is_` or `has_`
+- Timestamp columns: suffix with `_at` (e.g., `created_at`, `deleted_at`)
+- All column names: `snake_case`
+
+## Soft Deletes
+
+- Never physically delete user-owned data — use a `deleted_at` timestamp column
+- Application queries must filter on `deleted_at IS NULL` by default; make this opt-in to include deleted records
+
+## Sensitive Data
+
+- Never store PII or credentials in plaintext
+- Document the encryption or hashing strategy in the schema file or migration comment
+- Audit log tables must be append-only — no updates or deletes
+
+## Query Hygiene
+
+- No `SELECT *` in production query paths — select only the columns you need
+- Document the expected query count in comments for any ORM-heavy code
+- Use `select_related` / `eager_load` / `JOIN` to prevent N+1 queries
+- Run `EXPLAIN ANALYZE` on any query touching tables with more than 10k rows before merging
+
+## Transactions
+
+- Wrap multi-step mutations in a single transaction
+- Keep transactions short — do not perform network calls or heavy computation inside a transaction

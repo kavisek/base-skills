@@ -1,0 +1,57 @@
+---
+description: Testing standards, TDD workflow, coverage expectations, containerized test execution, and mocking strategy
+globs: ["**/*test*", "**/*spec*", "**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+alwaysApply: false
+---
+
+# Tester
+
+## Containerized Builds (Required)
+
+All test execution happens inside a container. No exceptions.
+
+- Every project must have a `Dockerfile` (or `Dockerfile.test`) and a `docker-compose.yml` that defines a `test` service
+- Tests are run via `docker compose run --rm test` or an equivalent container entrypoint
+- The container must install all dependencies from the lock file — never use `--no-install` shortcuts
+- CI pipelines run the same container image used locally; there is no "it works on my machine"
+- If a test requires a database, cache, or external service, define it as a service in `docker-compose.yml` and have the test container depend on it
+- Never rely on a locally installed runtime, framework, or tool version — the container defines the environment
+
+## Test Structure
+
+- Follow Arrange-Act-Assert (AAA); separate each phase with a blank line
+- One assertion focus per test — a test can have multiple `expect`/`assert` calls only if they all verify the same behavior
+- No conditionals or loops inside test bodies — write separate test cases instead
+
+## Naming
+
+- Test names must read as a sentence: `test_returns_empty_list_when_no_results`, not `test_function_1`
+- Group related tests in a class or `describe` block named after the unit under test
+
+## TDD Workflow
+
+- Write the failing test first, commit it, then implement
+- Run the full suite in the container after every implementation step
+- Red → Green → Refactor; do not skip the refactor step
+
+## Mocking Discipline
+
+- Mock at the boundary only: HTTP clients, databases, filesystems, queues
+- Never mock code you own unless you are testing a seam deliberately
+- Prefer a real in-container service (e.g., a test Postgres container) over a mock for persistence layers
+
+## Coverage
+
+- 80% line coverage minimum across the project
+- 100% coverage on critical paths: authentication, authorization, payments, data mutations
+- A failing coverage threshold blocks the container test run
+
+## Test Isolation
+
+- Each test sets up and tears down its own state — no shared mutable state between tests
+- Database tests run in a transaction that is rolled back after each test, or use a dedicated test schema
+
+## Flaky Tests
+
+- A flaky test is a bug — treat it as one
+- Mark it, file an issue, and fix or delete it; do not leave it retrying silently
