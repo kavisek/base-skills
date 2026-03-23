@@ -17,6 +17,171 @@ alwaysApply: false
 - Default to **FastAPI** for all backend services unless the project explicitly specifies otherwise
 - Do not substitute Flask, Django, Express, or another framework without a stated reason
 
+## Startup new projects
+
+When bootstrapping a project with **PostgreSQL**, **Alembic**, a **backend** API, and a **frontend**, use Docker Compose so local development has a repeatable stack: DB health before migrations and API, and a named volume for Postgres data.
+
+**Hot reloading is required for local dev:** both **backend** and **frontend** must be configured so code changes on the host are picked up without rebuilding images or manually restarting containers—use bind mounts to the app source, dev-oriented Dockerfiles/commands (e.g. FastAPI with `--reload`, framework dev server via **Bun**), and an anonymous volume that preserves installed dependencies inside the container (typically `node_modules` for Bun/Next.js). Do not ship a Compose setup that only runs production builds if the goal is day-to-day development.
+
+Treat the example below as a **template**. **Minor adjustments** to fit the repo are fine—e.g. ports, host paths, env var names, Dockerfile filenames, or dropping a service you do not need. Keep the same structural ideas: Postgres health before dependents, Alembic before or alongside the API as appropriate, **hot reload for backend and frontend**, a shared user-defined network, a named volume for database data, and a **root Makefile** wrapping `docker compose` (see example below).
+
+- **Postgres (`db`):** Build from `./database/Dockerfile.postgres`, map host `5432`, set credentials, optional `pg_stat_statements` via `command`, **healthcheck** (`pg_isready`), and persist with `postgres_data:/var/lib/postgresql/data`.
+- **Alembic (`alembic`):** Build from `./backend` with the same `Dockerfile` as the API, override `command` to `alembic upgrade head`, set `POSTGRES_CONNECTION_STRING` to `db`, and `depends_on` `db` with `service_healthy`.
+- **Backend (`backend`):** Same image context as Alembic; expose the app (e.g. `4002:8080`), bind-mount `./backend` into the container so the dev server can watch files, mount a data dir if needed, set `DATABASE_URL` / `DATA_DIR`, and depend on healthy `db`. The image/command must run in **reload/watch mode** for local development. Prefer **uv** in the Dockerfile: copy the official `uv` binary, install dependencies from `pyproject.toml` with `uv pip install --system .`, and run **uvicorn** with `--reload` (see example below). Ensure Alembic is listed in backend dependencies so the `alembic` service can use the same image.
+- **Frontend (`frontend`):** Use **Bun** as the package manager and runtime for the frontend. For **local deployment only**, build from **`Dockerfile.dev`** (not the production image): install with `bun install`, start with `bun run dev` (or the script that runs your framework’s dev server). Bind-mount `./frontend`, use an anonymous `node_modules` volume so dependency installs stay in-container across restarts, set `NEXT_PUBLIC_API_URL` to the host-mapped backend URL for browser calls, and `depends_on` `backend`.
+- **Networking:** All services on one user-defined network so `db` and `backend` resolve by service name inside Compose.
+- **Makefile:** Add a **`Makefile`** at the repo root beside `docker-compose.yml`: `status` (compose/containers/volumes/networks), `watch` (refresh `status` every 5s), `shutdown` / `shutdown_volumes`, and `start` (runs `shutdown` then `docker compose up`). Use **tab-indented** recipes (see example below).
+
+Example `docker-compose.yml`:
+
+```yaml
+services:
+  db:
+    container_name: postgres
+    build:
+      context: ./database
+      dockerfile: Dockerfile.postgres
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all -c max_connections=400
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: docker
+    ports:
+      - "5432:5432"
+    networks:
+      - network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  alembic:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: "alembic upgrade head"
+    environment:
+      - POSTGRES_CONNECTION_STRING=postgresql://postgres:docker@db:5432/postgres
+    networks:
+      - network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4002:8080"
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    environment:
+      DATABASE_URL: postgresql://postgres:docker@db:5432/postgres
+      DATA_DIR: /data
+    networks:
+      - network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4002
+    networks:
+      - network
+    depends_on:
+      - backend
+
+networks:
+  network:
+
+volumes:
+  postgres_data:
+```
+
+Example `backend/Dockerfile` using **uv** (adjust the ASGI module in `CMD` if your entrypoint is not `main:app`; add `uv.lock` to early `COPY` steps if you use one for reproducible installs):
+
+```dockerfile
+FROM python:3.14-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy dependency file first for better layer caching
+COPY pyproject.toml ./
+RUN uv pip install --system .
+
+COPY . /app
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+```
+
+Example `frontend/Dockerfile.dev` using **Bun** for local Compose only (use a separate production Dockerfile for deploys; copy `bun.lockb` or `bun.lock` before `bun install` when your repo uses a lockfile):
+
+```dockerfile
+FROM oven/bun:1-slim
+
+WORKDIR /app
+
+COPY package.json ./
+RUN bun install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["bun", "run", "dev"]
+```
+
+Add a **Makefile** at the project root (next to `docker-compose.yml`) so common Compose workflows are one command. Recipe lines must use a **tab** indent. The `start` target runs `shutdown` first for a clean bring-up; `watch` requires the `watch` utility (e.g. `brew install watch` on macOS if missing).
+
+```makefile
+# DOCKER COMPOSE COMMANDS
+
+.PHONY: status watch shutdown shutdown_volumes start
+
+status:
+	docker compose ls
+	docker container ls
+	docker volume ls
+	docker network ls
+
+watch:
+	watch -n 5 make status 
+
+shutdown:
+	docker compose down
+
+shutdown_volumes:
+	docker compose down -v
+
+start: shutdown
+	docker compose up
+```
+
 ## API Design
 
 - Define request/response schemas before writing handler logic (schema-first)
